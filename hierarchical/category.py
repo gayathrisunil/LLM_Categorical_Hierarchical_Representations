@@ -5,19 +5,19 @@ import torch
 from sklearn.covariance import ledoit_wolf
 
 
-def get_categories(noun_or_verb = 'noun', model_name = 'gemma'):
+def get_categories(noun_or_verb = 'noun', model_name = 'gemma', data_path = 'data'):
 
     cats = {}
     if noun_or_verb == 'noun':
-        with open(f'data/noun_synsets_wordnet_{model_name}.json', 'r') as f:
+        with open(f'{data_path}/noun_synsets_wordnet_{model_name}.json', 'r') as f:
             for line in f:
                 cats.update(json.loads(line))
-        G = nx.read_adjlist(f"data/noun_synsets_wordnet_hypernym_graph_{model_name}.adjlist", create_using=nx.DiGraph())
+        G = nx.read_adjlist(f"{data_path}/noun_synsets_wordnet_hypernym_graph_{model_name}.adjlist", create_using=nx.DiGraph())
     elif noun_or_verb == 'verb':
-        with open(f'data/verb_synsets_wordnet_{model_name}.json', 'r') as f:
+        with open(f'{data_path}/verb_synsets_wordnet_{model_name}.json', 'r') as f:
             for line in f:
                 cats.update(json.loads(line))
-        G = nx.read_adjlist(f"data/verb_synsets_wordnet_hypernym_graph_{model_name}.adjlist", create_using=nx.DiGraph())
+        G = nx.read_adjlist(f"{data_path}/verb_synsets_wordnet_hypernym_graph_{model_name}.adjlist", create_using=nx.DiGraph())
     
     cats = {k: list(set(v)) for k, v in cats.items() if len(set(v)) > 50}
     G = nx.DiGraph(G.subgraph(cats.keys()))
