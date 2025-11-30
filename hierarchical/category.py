@@ -49,15 +49,41 @@ def get_words_sim_to_vec(query: torch.tensor, unembed, vocab_list, k=300):
     similar_indices = torch.topk(unembed @ query, k, largest=True).indices.cpu().numpy()
     return [vocab_list[idx] for idx in similar_indices]
 
-def estimate_single_dir_from_embeddings(category_embeddings):
+def estimate_single_dir_from_embeddings(category_embeddings, regularization=1e-6):
+    """
+    Estimate LDA direction from category embeddings.
+
+    Args:
+        category_embeddings: Tensor of embeddings for words in category
+        regularization: Regularization term to add to covariance (default: 1e-6)
+
+    Returns:
+        lda_dir: LDA direction vector
+        category_mean: Mean of category embeddings
+    """
     category_mean = category_embeddings.mean(dim=0)
 
-    cov = ledoit_wolf(category_embeddings.cpu().numpy())
-    cov = torch.tensor(cov[0], device = category_embeddings.device)
-    pseudo_inv = torch.linalg.pinv(cov)
-    lda_dir = pseudo_inv @ category_mean
-    lda_dir = lda_dir / torch.norm(lda_dir)
-    lda_dir = (category_mean @ lda_dir) * lda_dir
+    try:
+        # Compute covariance with Ledoit-Wolf shrinkage
+        cov = ledoit_wolf(category_embeddings.cpu().numpy())
+        cov = torch.tensor(cov[0], device=category_embeddings.device)
+
+        # Add regularization to improve numerical stability
+        # This adds a small value to the diagonal to prevent singularity
+        d = cov.shape[0]
+        cov = cov + regularization * torch.eye(d, device=cov.device)
+
+        # Compute pseudo-inverse with tolerance for small singular values
+        pseudo_inv = torch.linalg.pinv(cov, rcond=1e-5)
+        lda_dir = pseudo_inv @ category_mean
+        lda_dir = lda_dir / torch.norm(lda_dir)
+        lda_dir = (category_mean @ lda_dir) * lda_dir
+
+    except (torch.linalg.LinAlgError, RuntimeError) as e:
+        # If pseudo-inverse fails, fall back to using normalized mean
+        print(f"Warning: Pseudo-inverse failed ({str(e)}), using mean vector instead")
+        lda_dir = category_mean / torch.norm(category_mean)
+        lda_dir = (category_mean @ lda_dir) * lda_dir
 
     return lda_dir, category_mean
 
